@@ -32,7 +32,6 @@ import (
 	"time"
 
 	userpb "github.com/cs3org/go-cs3apis/cs3/identity/user/v1beta1"
-	types "github.com/cs3org/go-cs3apis/cs3/types/v1beta1"
 	"github.com/cs3org/reva/pkg/appctx"
 	"github.com/cs3org/reva/pkg/rhttp"
 	"github.com/cs3org/reva/pkg/user"
@@ -290,6 +289,8 @@ func (m *manager) parseAndCacheUser(ctx context.Context, userData map[string]int
 	upn, _ := userData["upn"].(string)
 	mail, _ := userData["primaryAccountEmail"].(string)
 	name, _ := userData["displayName"].(string)
+	uidNumber, _ := userData["uid"].(int64)
+	gidNumber, _ := userData["gid"].(int64)
 
 	userID := &userpb.UserId{
 		OpaqueId: upn,
@@ -300,18 +301,8 @@ func (m *manager) parseAndCacheUser(ctx context.Context, userData map[string]int
 		Username:    upn,
 		Mail:        mail,
 		DisplayName: name,
-		Opaque: &types.Opaque{
-			Map: map[string]*types.OpaqueEntry{
-				"uid": &types.OpaqueEntry{
-					Decoder: "plain",
-					Value:   []byte(fmt.Sprintf("%0.f", userData["uid"])),
-				},
-				"gid": &types.OpaqueEntry{
-					Decoder: "plain",
-					Value:   []byte(fmt.Sprintf("%0.f", userData["gid"])),
-				},
-			},
-		},
+		UidNumber:   uidNumber,
+		GidNumber:   gidNumber,
 	}
 
 	if err := m.cacheUserDetails(u); err != nil {
@@ -395,6 +386,8 @@ func (m *manager) findUsersByFilter(ctx context.Context, url string, users map[s
 		upn, _ := usrInfo["upn"].(string)
 		mail, _ := usrInfo["primaryAccountEmail"].(string)
 		name, _ := usrInfo["displayName"].(string)
+		uidNumber, _ := usrInfo["uid"].(int64)
+		gidNumber, _ := usrInfo["gid"].(int64)
 
 		uid := &userpb.UserId{
 			OpaqueId: upn,
@@ -405,18 +398,8 @@ func (m *manager) findUsersByFilter(ctx context.Context, url string, users map[s
 			Username:    upn,
 			Mail:        mail,
 			DisplayName: name,
-			Opaque: &types.Opaque{
-				Map: map[string]*types.OpaqueEntry{
-					"uid": &types.OpaqueEntry{
-						Decoder: "plain",
-						Value:   []byte(fmt.Sprintf("%0.f", usrInfo["uid"])),
-					},
-					"gid": &types.OpaqueEntry{
-						Decoder: "plain",
-						Value:   []byte(fmt.Sprintf("%0.f", usrInfo["gid"])),
-					},
-				},
-			},
+			UidNumber:   uidNumber,
+			GidNumber:   gidNumber,
 		}
 	}
 
@@ -507,12 +490,8 @@ func (m *manager) IsInGroup(ctx context.Context, uid *userpb.UserId, group strin
 }
 
 func extractUID(u *userpb.User) (string, error) {
-	if u.Opaque != nil && u.Opaque.Map != nil {
-		if uidObj, ok := u.Opaque.Map["uid"]; ok {
-			if uidObj.Decoder == "plain" {
-				return string(uidObj.Value), nil
-			}
-		}
+	if u.UidNumber == 0 {
+		return "", errors.New("rest: could not retrieve UID from user")
 	}
-	return "", errors.New("rest: could not retrieve UID from user")
+	return fmt.Sprintf("%v", u.UidNumber), nil
 }
